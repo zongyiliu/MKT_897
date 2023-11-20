@@ -1,0 +1,155 @@
+---
+title: "Exercise 2"
+author: "Zongyi Liu"
+date: "2023-11-03"
+output: html_document
+---
+
+## R Markdown
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+data_14<-read.csv("oj_14.csv")
+data_all<-read.csv("oj_all.csv")
+```
+
+## Problem 1
+
+Compare the means and standard deviations of prices of the two brands for store 14 vs. the chain as a whole. What does this tell you about pricing at store 14? Would you in general prefer store-level or account-level data to understand the relationship between sales and price? Why?
+
+```{r}
+data_14|>summarize(mean(price1), sd(price1))
+data_all|>summarize(mean(price1), sd(price1))
+
+data_14|>summarize(mean(price0), sd(price0))
+data_all|>summarize(mean(price0), sd(price0))
+```
+
+> From the result we can see that for Minute Maid, the mean price for the store_14 is 2.340635 and the standard deviation is 0.4527344 , they are both larger than the counterparts for the chain as a whole.
+>
+> And for the Tropicana, the mean price for the store_14 is 2.717303, and the standard deviation is 0.4303286. In conclusion both brands in store 14 have higher mean and standard deviation over all other stores.
+>
+> I would, in general, prefer account-level data to understand the relationship between sales and price, because they have more comprehensive data.
+
+## Problem 2
+
+Construct time series plots of sales and prices for Tropicana and Minute Maid in both store 14 and for Dominick's (sales or price on the y-axis and week on the x- axis). What are the similarities and differences between Tropicana and Minute Maid pricing policies? What do you think the managers are doing and how are customers responding?
+
+```{r}
+data_14
+data_all
+```
+
+```{r}
+ggplot(data_14, aes(x = week)) +
+  geom_line(aes(y = price0, color = "Price 0")) +
+  geom_line(aes(y = price1, color = "Price 1")) +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Sales"), breaks = NULL) +
+  geom_line(aes(y = sales0, color = "Sale 0")) +
+  geom_line(aes(y = sales1, color = "Sale 1")) +
+  scale_color_manual(values = c("Price 0" = "blue", "Price 1" = "cyan", "Sale 0" = "red", "Sale 1" = "magenta")) +
+  labs(x = "Week", y = "Price", color = "Series") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+```{r}
+data_long <- tidyr::gather(data_14, variable, value, -week)
+ggplot(data_long, aes(x = week, y = value, color = variable))+  
+  geom_line() +
+  facet_wrap(~ variable, scales = "free_y", ncol = 1) +
+  labs(x = "Week", y = "Value", color = "Variable") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+> Generally, the prices of Tropicana and Minute Maid are similar, they are within \$1-4 range; and when the price goes down, the demand (sales) would go up, and vice versa.
+>
+> Also we can see that the prices of Minute Maid and Tropicana are somehow corresponding to each other, for 0-100 week interval, the prices were relatively high, and went down later. Then both Minute Maid and Tropicana kept their prices at a lower level.
+
+## Problem 3
+
+Construct scatter plots of sales vs. prices (i.e. sales on Y-axis and prices on X- axis) for Tropicana and Minute Maid at Dominick's. Construct scatter plots for log(sales) vs. log(prices) for the two brands. What do these scatter plots tell you about demand (sales) and its relationship with prices?
+
+```{r}
+ggplot(data_14, aes(x = price0, y = sales0, color = "Tropicana")) +
+  geom_point() +
+  geom_point(data = data, aes(x = price1, y = sales1, color = "Minute Maid")) +
+  labs(x = "Price", y = "Sales", color = "Variable") +
+  scale_color_manual(values = c("Tropicana" = "red", "Minute Maid" = "blue")) +
+  ggtitle("Combined Scatter Plots of Sales vs. Prices")
+```
+
+```{r}
+# Log-transform the sales and prices
+data_14$log_sales0 <- log(data_14$sales0)
+data_14$log_sales1 <- log(data_14$sales1)
+data_14$log_price0 <- log(data_14$price0)
+data_14$log_price1 <- log(data_14$price1)
+
+data_all$log_sales0 <- log(data_all$sales0)
+data_all$log_sales1 <- log(data_all$sales1)
+data_all$log_price0 <- log(data_all$price0)
+data_all$log_price1 <- log(data_all$price1)
+
+# Create scatter plots for log-transformed sales vs. log-transformed prices
+ggplot(data_14, aes(x = log_price0, y = log_sales0, color = "Tropicana")) +
+  geom_point() +
+  geom_point(data = data_14, aes(x = log_price1, y = log_sales1, color = "Minute Maid")) +
+  labs(x = "Log(Price)", y = "Log(Sales)", color = "Category") +
+  scale_color_manual(values = c("Tropicana" = "red", "Minute Maid" = "blue")) +
+  ggtitle("Scatter Plots of Log(Sales) vs. Log(Prices)")
+```
+
+> From those two scatterplots, we can see that the price and sales have negative relationships, when the price goes up, sales go down, and when the price goes down, the sales go up.
+
+## Problem 4
+
+Run a regression using the data. Use log(sales) as the DV and log(own price) as the IV for both datasets (estimate the model separately for Tropicana and MM -- you need to run four regressions). The regression coefficient of log(own price) is the (own) price elasticity of demand.
+
+```{r}
+# Do the regression, DV refers to Dependent Variable, which is Y IV refers to Independent Variable, which is X
+
+lm(log_sales0~log_price0, data=data_14)
+lm(log_sales1~log_price1, data=data_14)
+lm(log_sales0~log_price0, data=data_all)
+lm(log_sales1~log_price1, data=data_all)
+```
+
+> The regression coefficients are shown above
+>
+> How to interpret the regression coefficients and elasticity; source: <https://openstax.org/books/introductory-business-statistics/pages/13-5-interpretation-of-regression-coefficients-elasticity-and-logarithmic-transformation>
+
+## Problem 5
+
+How does store 14 compare with the Dominick's chain in terms of price elasticities? How does Tropicana compare with Minute Maid in terms of price elasticities? Do the pricing strategies of Tropicana and Minute Maid in store 14 vs. the chain as a whole make sense in light of these elasticities?
+
+> From the results above, we can see that the price elasticities for both Tropicana and Minute Maid are lower for store 14 than all other stores.
+>
+> Tropicana, it's -2.713 in store 14, and -2.893 for all stores
+>
+> Minute Maid, it's -3.368 in store 14, and -3.554 for all stores
+
+## Problem 6
+
+Now run the same four regressions with the addition of competitive prices i.e., there are two IVs - log(own price) and log(price of competitor or cross price). What does this analysis tell you about vulnerability of each of the two brands to competitive pressure from the other brand at the Dominick's chain as a whole and at store 14?
+
+```{r}
+lm(log_sales0~log_price0+log_price1, data=data_14)
+lm(log_sales1~log_price0+log_price1, data=data_all)
+```
+
+## Problem 7
+
+Suppose you are the Tropicana brand manager and have just learnt that Minute Maid is taking a 10% price cut on average at the Dominick's chain. In light of the quantitative analysis you have conducted so far, would you consider a price cut of your own, if your objective for the year were to maintain sales at the same level as before the Minute Maid price cut? By what % would you cut Tropicana prices at Dominick's? [Hint: This is again best using pen and paper with the aid of the regression results].
+
+```{r}
+
+```
+
+## Problem 8
+
+If your conclusion to Q1 is that store 14 is somewhat different from the average store in the chain, how would you incorporate that into the regression model? In general, how would you expand the regression to allow for differences across stores (heterogeneity)?

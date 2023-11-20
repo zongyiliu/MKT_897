@@ -1,0 +1,174 @@
+---
+title: "Exercise_3"
+author: "Zongyi Liu"
+date: "2023-11-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Instruction in Original Excel
+
+1.  Get 10 draws for each observation from N(0,1). Columns D to M. Note that this can be done before to save computation time.
+2.  Compute values of equation 10 using the 10 draws. Columns O to X.
+3.  Get 10 draws for alpha_t (equation 8). Columns Y to AH.
+4.  Compute the likelihood given parms for each observation. Columns AI to AR.
+5.  Now take the overall likelihood per physician by multiplying the likelihood for all t for each physician. The product is stored in the last row for each physician (the first 5 rows for each physician are not used).
+6.  Find the average likelihood across all 10 observations (columns AS to BB) and then log (column BC).
+7.  Multiply the average likelihood for each physician observation with last obs indicatore in column BD - same as column N - and put in column BE.
+8.  Add up all the average likelihood across all physicians and put that in cell B6610 as the objective function.
+
+## Practice
+
+### 0_Read the Data for the Four Columns
+
+```{r}
+# install.packages("readxl")
+# library(readxl)
+# data_use<-read_excel('~./Users/ego/Desktop/897/ex 3/PhysDiff_Solve.xlsx')
+```
+
+```{r}
+data_use<-read.csv("PhysDiff_Solve.csv")
+
+date_use_2<-subset(data_use, select=c(Period.Pres,Upto.Pres,Cum.Det,Last.Obs))
+```
+
+### 1_Add Randomly Created Data
+
+```{r cars}
+c_1=rnorm(6000, mean=0, sd=1)
+c_2=rnorm(6000, mean=0, sd=1)
+c_3=rnorm(6000, mean=0, sd=1)
+c_4=rnorm(6000, mean=0, sd=1)
+c_5=rnorm(6000, mean=0, sd=1)
+c_6=rnorm(6000, mean=0, sd=1)
+c_7=rnorm(6000, mean=0, sd=1)
+c_8=rnorm(6000, mean=0, sd=1)
+c_9=rnorm(6000, mean=0, sd=1)
+c_10=rnorm(6000, mean=0, sd=1)
+
+dateset<-data.frame(
+  Rnd_1=c_1,
+  Rnd_2=c_2,
+  Rnd_3=c_3,
+  Rnd_4=c_4,
+  Rnd_5=c_5,
+  Rnd_6=c_6,
+  Rnd_7=c_7,
+  Rnd_8=c_8,
+  Rnd_9=c_9,
+  Rnd_10=c_10)
+
+# Combine them together
+data_use_4<-cbind(date_use_2,dateset)
+data_use_4
+```
+
+### 2_Equation 10
+
+```{r}
+# =$B$6007*$C148+(SQRT($B$6009)*SQRT($C148))*M148
+
+IQP = -1.29149813551524 #6006
+TQP = 2.59183658947035  #6007
+DSV	= 0.878787081       #6008
+ADSV = exp(DSV)  # 6009
+
+library(dplyr)
+
+data_use_4 <- data_use_4%>%mutate(
+  NDr_1 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_1,
+  NDr_2 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_2,
+  NDr_3 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_3,
+  NDr_4 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_4,
+  NDr_5 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_5,
+  NDr_6 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_6,
+  NDr_7 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_7,
+  NDr_8 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_8,
+  NDr_9 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_9,
+  NDr_10 = TQP * Cum.Det + (sqrt(ADSV) * sqrt(Cum.Det)) * Rnd_10)
+
+data_use_4
+```
+
+### 3_Equation 8
+
+```{r}
+# (($B$6006)+(O2/$B$6009))/(1+($C2/$B$6009))
+# O = NDr_1
+# C = Rnd_1
+
+data_use_4 <- data_use_4%>%mutate(
+  qp_1 = (IQP+(NDr_1/ADSV))/(1+(Rnd_1/ADSV)),
+  qp_2 = (IQP+(NDr_2/ADSV))/(1+(Rnd_2/ADSV)),
+  qp_3 = (IQP+(NDr_3/ADSV))/(1+(Rnd_3/ADSV)),
+  qp_4 = (IQP+(NDr_4/ADSV))/(1+(Rnd_4/ADSV)),
+  qp_5 = (IQP+(NDr_5/ADSV))/(1+(Rnd_5/ADSV)),
+  qp_6 = (IQP+(NDr_6/ADSV))/(1+(Rnd_6/ADSV)),
+  qp_7 = (IQP+(NDr_7/ADSV))/(1+(Rnd_7/ADSV)),
+  qp_8 = (IQP+(NDr_8/ADSV))/(1+(Rnd_8/ADSV)),
+  qp_9 = (IQP+(NDr_9/ADSV))/(1+(Rnd_9/ADSV)),
+  qp_10 = (IQP+(NDr_10/ADSV))/(1+(Rnd_10/ADSV)))
+
+data_use_4
+```
+
+### 4_Likelihood Given Parms
+
+```{r}
+# ((EXP(Y6001)/(1+EXP(Y6001)))*A6001+(1/(1+EXP(Y6001)))*(1-A6001))^B6001
+# Y = qp_1
+# A = Period.Pres
+# B = Upto.Pres
+
+data_use_4 <- data_use_4%>%mutate(
+  prp_1 = (exp(qp_1)/(1+exp(qp_1)))*Period.Pres + (1/(1+exp(qp_1))*(1-Period.Pres))^Upto.Pres,
+  prp_2 = (exp(qp_2)/(1+exp(qp_2)))*Period.Pres + (1/(1+exp(qp_2))*(1-Period.Pres))^Upto.Pres,
+  prp_3 = (exp(qp_3)/(1+exp(qp_3)))*Period.Pres + (1/(1+exp(qp_3))*(1-Period.Pres))^Upto.Pres,
+  prp_4 = (exp(qp_4)/(1+exp(qp_4)))*Period.Pres + (1/(1+exp(qp_4))*(1-Period.Pres))^Upto.Pres,
+  prp_5 = (exp(qp_5)/(1+exp(qp_5)))*Period.Pres + (1/(1+exp(qp_5))*(1-Period.Pres))^Upto.Pres,
+  prp_6 = (exp(qp_6)/(1+exp(qp_6)))*Period.Pres + (1/(1+exp(qp_6))*(1-Period.Pres))^Upto.Pres,
+  prp_7 = (exp(qp_7)/(1+exp(qp_7)))*Period.Pres + (1/(1+exp(qp_7))*(1-Period.Pres))^Upto.Pres,
+  prp_8 = (exp(qp_1)/(1+exp(qp_8)))*Period.Pres + (1/(1+exp(qp_8))*(1-Period.Pres))^Upto.Pres,
+  prp_9 = (exp(qp_1)/(1+exp(qp_9)))*Period.Pres + (1/(1+exp(qp_9))*(1-Period.Pres))^Upto.Pres,
+  prp_10 = (exp(qp_1)/(1+exp(qp_10)))*Period.Pres + (1/(1+exp(qp_10))*(1-Period.Pres))^Upto.Pres
+  )
+  
+data_use_4
+```
+
+### 6_Average Likelihood
+
+```{r}
+# Find the average likelihood across all 10 observations (columns AS to BB) and then log (column BC).
+# =PRODUCT(AI2:AI7)
+# =LN(AVERAGE(AS7:BB7))
+
+data_use_5 <- data_use_4%>%mutate(
+  ll_1  = lead(prp_1, 1)*lead(prp_1, 2)*lead(prp_1, 3)*lead(prp_1, 4)*lead(prp_1, 5)*lead(prp_1,6)
+  ll_1  = lead(prp_1, 1)*lead(prp_1, 2)*lead(prp_1, 3)*lead(prp_1, 4)*lead(prp_1, 5)*lead(prp_1,6)
+  
+  ln(Avg(ll))=log(average(ll_1+ll_2+ll_3+ll_4+ll_5+ll_6+ll_7+ll_8+ll_9+ll_10))
+  )
+
+data_use_5
+```
+
+### 7_Average Plus Last Ob
+
+```{r}
+# Multiply the average likelihood for each physician observation with last obs indicatore in column BD - same as column N - and put in column BE.
+
+data_use_6 <- data_use_5%>%mutate(
+  BE_result=ln(Avg(ll))*Last.Obs
+)
+```
+
+### 8_Add Up All
+
+```{r}
+LL=sum(data_use_6$BE_result)
+```

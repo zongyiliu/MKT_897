@@ -1,0 +1,277 @@
+###########################################################################
+# 
+# R Code to replicate analysis in Hartman (2010) Marketing Science
+# 
+# Author: Hee Mok Park (under Puneet Manchanda's supervision)
+# Dec 2011
+#
+# Data are simulated
+#
+# This code is for the use of student in Puneet Manchanda's PhD Seminar
+# 
+# Please do not circulate without permission from Park and/or Manchanda
+#
+###########################################################################
+
+# load libraries
+
+library(evd)
+library(bayesm)
+
+
+################
+## simulation ##
+################
+
+m=1 # number of simulation
+
+
+nvar=5   # intrinsic preference for 1 and 2, peer effect, covariate1, covariate2 #
+nlgt=200 #number of agents
+nobs=50 #number of obs for each agent
+nz=1 # number of demographic variables for HB 
+
+
+
+delta.est=matrix(0,m,nvar)
+var.est=matrix(0,m,nvar*nvar)
+
+
+k=-3 # intrinsic preference #
+l=0.5 # peer effect #
+p=0.5 # Variance of intrinsic preference #
+q=0.5^2 #covariance between intrinsic preference of peers #
+r=0.5^2 #variance of peer effect #
+a=2.5 # weekend #
+b=2.5 #last_earned_money #
+
+## set population parameters ##
+
+Z=matrix(c(rep(1,nlgt)),nrow=nlgt, ncol=1)
+Delta=matrix(c(k,k,l,a,b),nrow=1,ncol=nvar)
+iota=matrix(1,nrow=nvar,ncol=1)
+Vbeta=matrix(c(p,q,0,0,0,
+               q,p,0,0,0,
+               0,0,r,0,0,
+               0,0,0,0.1,0,
+               0,0,0,0,0.1),nvar,nvar)
+
+
+
+
+
+## generate simulation data ##
+lgtdata=NULL
+
+for (l in 1:nlgt)
+{ beta=t(Delta)%*%Z[l,]+as.vector(t(chol(Vbeta))%*%rnorm(nvar))
+
+
+v10=beta[1]  # generating intrinsic prefernce + peer effect values #
+v11=beta[1]+beta[3]
+v20=beta[2]
+v21=beta[2]+beta[3]
+
+d1=matrix(0,nobs,1)  # generating covariate1:weekend #
+for (i in 1:floor(nobs/7)){  
+
+d1[7*i-2,1]=1
+d1[7*i-1,1]=1
+d1[7*i,1]=1
+
+}
+
+d21=as.matrix(rnorm(nobs, 0, 1)) #generating covariate2 #
+d22=as.matrix(rnorm(nobs, 0, 1))
+
+
+
+e11=as.matrix(rgumbel(nobs, loc=0, scale=1)) #generating error terms #
+e10=as.matrix(rgumbel(nobs, loc=0, scale=1))
+e21=as.matrix(rgumbel(nobs, loc=0, scale=1))
+e20=as.matrix(rgumbel(nobs, loc=0, scale=1))
+
+
+
+
+
+#generating dependent variable
+
+y=matrix(0,nobs,2)
+
+
+for (i in 1:nobs) {
+
+if (v11+a*d1[i]+b*d21[i]>(e10[i]-e11[i]) & v21+a*d1[i]+b*d22[i]>(e20[i]-e21[i]))
+
+y[i,1]=y[i,2]=1
+
+
+if (v10+a*d1[i]+b*d21[i]>(e10[i]-e11[i]) & v21+a*d1[i]+b*d22[i]<(e20[i]-e21[i]))
+
+y[i,1]=1 
+
+
+if (v11+a*d1[i]+b*d21[i]<(e10[i]-e11[i]) & v20+a*d1[i]+b*d22[i]>(e20[i]-e21[i]))
+
+y[i,2]=1
+
+}
+
+
+lgtdata[[l]]=list(y=y,d1=d1,d21=d21,d22=d22,beta=beta)
+
+}
+}
+
+
+
+
+# equilibrium model #
+
+
+loglike <- function(theta, x1, x2, d1, d21, d22)
+{
+x=matrix(0,length(x1),1)
+
+for (i in 1:length(x1)){
+
+x111=exp(theta[1]+theta[3]+theta[4]*d1[i]+theta[5]*d21[i]) #numerator of logit y1=1 when y2=1
+x211=exp(theta[2]+theta[3]+theta[4]*d1[i]+theta[5]*d22[i]) #numerator of logit y2=1 when y2=1
+x110=exp(theta[1]+theta[4]*d1[i]+theta[5]*d21[i]) #numerator of logit y1=1 when y2=0
+x201=exp(theta[2]+theta[4]*d1[i]+theta[5]*d22[i]) #numerator of logit y2=1 when y1=0
+
+
+#generating log likelihood
+
+if (x1[i]==0 & x2[i]==0)
+
+x[i]=log(1-x111/(x111+1)*x211/(x211+1)-x110/(x110+1)/(x211+1)-x201/(x201+1)/(x111+1))
+
+if (x1[i]==1 & x2[i]==1)
+
+x[i]=log(x111/(x111+1)*x211/(x211+1))
+
+if (x1[i]==1 & x2[i]==0)
+
+x[i]=log(x110/(x110+1)/(x211+1))
+
+if (x1[i]==0 & x2[i]==1)
+
+x[i]=log(x201/(x201+1)/(x111+1))
+
+}
+
+sum(x)
+
+}
+
+
+#Hierarchical Bayesian Method using Metropolis Hastings algorithm
+
+
+nu = nvar + 3
+V = nu * diag(nvar)
+Deltabar = matrix(rep(0, nz * nvar), ncol = nvar)
+ADelta = 0.01 * diag(nz)
+
+
+sbeta = 0.2
+keep = 1
+R=500
+
+Vbetadraw = matrix(double(floor(R/keep) * nvar * nvar), ncol = nvar * nvar)
+betadraw = array(double(floor(R/keep) * nlgt * nvar), dim = c(nlgt,nvar, floor(R/keep)))
+Deltadraw = matrix(double(floor(R/keep) * nvar * nz), ncol = nvar * nz)
+
+
+oldbetas = matrix(double(nlgt * nvar), ncol = nvar)
+oldVbeta = diag(nvar)
+oldVbetai = diag(nvar)
+oldDelta = matrix(double(nvar * nz), ncol = nvar) 
+betad = array(0, dim = c(nvar))
+betan = array(0, dim = c(nvar))
+reject = array(0, dim = c(R/keep))
+llike = array(0, dim = c(R/keep))
+
+
+
+
+
+for (j in 1:R) {
+        rej = 0
+        logl = 0
+        sV = sbeta * oldVbeta
+        root = t(chol(sV))
+        for (i in 1:nlgt) {
+            betad = oldbetas[i, ]
+            betan = betad + root %*% rnorm(nvar)
+            lognew = loglike(betan,lgtdata[[i]]$y[,1], lgtdata[[i]]$y[,2],lgtdata[[i]]$d1,lgtdata[[i]]$d21,lgtdata[[i]]$d22)
+            logold = loglike(betad,lgtdata[[i]]$y[,1], lgtdata[[i]]$y[,2],lgtdata[[i]]$d1,lgtdata[[i]]$d21,lgtdata[[i]]$d22)
+            logknew = -0.5 * (t(betan) - Z[i, ] %*% oldDelta) %*% 
+                oldVbetai %*% (betan - t(Z[i, ] %*% oldDelta))
+            logkold = -0.5 * (t(betad) - Z[i, ] %*% oldDelta) %*% 
+                oldVbetai %*% (betad - t(Z[i, ] %*% oldDelta))
+            alpha = exp(lognew + logknew - logold - logkold)
+            if (alpha == "NaN") 
+                alpha = -1
+            u = runif(n = 1, min = 0, max = 1)
+            if (u < alpha) {
+                oldbetas[i, ] = betan
+                logl = logl + lognew
+            }
+            else {
+                logl = logl + logold
+                rej = rej + 1
+            }
+        }
+        out = rmultireg(oldbetas, Z, Deltabar, ADelta, nu, V)
+        oldDelta = out$B
+        oldVbeta = out$Sigma
+        oldVbetai = chol2inv(chol(oldVbeta))
+       
+        mkeep = j/keep
+        if (mkeep * keep == (floor(mkeep) * keep)) {
+            Deltadraw[mkeep, ] = as.vector(oldDelta)
+            Vbetadraw[mkeep, ] = as.vector(oldVbeta)
+            betadraw[, , mkeep] = oldbetas
+            llike[mkeep] = logl
+            reject[mkeep] = rej/nlgt
+        }
+
+print(j)
+    }
+
+
+
+
+
+
+matplot(Deltadraw, type='l')
+
+
+
+
+result1=matrix(0,5,3)
+
+for (i in 1:5){
+
+result1[i,]=quantile(Deltadraw[400:500,i], prob=c(0.025,0.5,0.975))
+
+}
+
+
+result2=matrix(0,6,3)
+
+result2[1,]=quantile(Vbetadraw[400:500,1], prob=c(0.025,0.5,0.975))
+result2[2,]=quantile(Vbetadraw[400:500,7], prob=c(0.025,0.5,0.975))
+result2[3,]=quantile(Vbetadraw[400:500,13], prob=c(0.025,0.5,0.975))
+result2[4,]=quantile(Vbetadraw[400:500,19], prob=c(0.025,0.5,0.975))
+result2[5,]=quantile(Vbetadraw[400:500,25], prob=c(0.025,0.5,0.975))
+result2[6,]=quantile(Vbetadraw[400:500,2], prob=c(0.025,0.5,0.975))
+
+
+
+
+
+
